@@ -44,7 +44,7 @@ poetry.lock
 
 #Jupyter
 .ipynb_checkpoints/
-notebooks/.ipynb_checkpoints/*.ipynb
+*/.ipynb_checkpoints/*
 
 # Installer logs
 pip-log.txt
