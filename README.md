@@ -4,8 +4,8 @@ Build and evalauted standard recommendation algorithms
 
 
 Inspired by -
-[Microsoft Recommenders](https://github.com/microsoft/recommenders)
-[Frank Kane Sundog](https://sundog-education.com/recsys/)
+- [Microsoft Recommenders](https://github.com/microsoft/recommenders)
+- [Frank Kane Sundog](https://sundog-education.com/recsys/)
 
 
 ## Installation instructions
