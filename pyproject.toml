@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "recommender-lib"
+version = "0.1.0"
+description = "reusuable components for building recommendation systems"
+authors = ["Kartik Ramasubramanian <r.kartik@berkeley.edu>"]
+readme = "README.md"
+homepage = "https://github.com/vensav/recommender-lib"
+repository = "https://github.com/vensav/recommender-lib"
+
+[tool.poetry.dependencies]
+python = ">=3.8.1,<4.0"
+surprise = "^0.1"
+jupyter = "^1.0.0"
+ipykernel = "^6.15.1"
+pandas = "^1.4.3"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.1.0"
+flake8 = "^3.9.0"
+pytest-cov = "^2.11.1"
+pytest-mock = "^3.5.1"
+pytest-runner = "^5.3.0"
+pytest-sugar = "^0.9.4"
+black = "^22.6.0"
+
+
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+)/
+'''
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
