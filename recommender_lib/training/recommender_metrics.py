@@ -3,12 +3,13 @@ import itertools
 from surprise import accuracy
 from collections import defaultdict
 
+
 class RecommenderMetrics:
 
-    def MAE(predictions):
+    def mean_absolute_error(predictions):
         return accuracy.mae(predictions, verbose=False)
 
-    def RMSE(predictions):
+    def root_mean_square_error(predictions):
         return accuracy.rmse(predictions, verbose=False)
 
     def top_n(predictions, n=10, minimum_rating=4.0):

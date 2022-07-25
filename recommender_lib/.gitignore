@@ -13,6 +13,7 @@ __pycache__/
 .*DS_Store
 .DS_Store
 idea/
+.idea/
 
 # Distribution / packaging
 .Python
@@ -34,7 +35,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-poetry.lock
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

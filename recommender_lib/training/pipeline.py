@@ -1,130 +1,90 @@
-from surprise.model_selection import train_test_split
-from surprise.model_selection import LeaveOneOut
-from surprise import KNNBaseline
-
-from recommender_lib.training.recommender_metrics import RecommenderMetrics
-from recommender_lib.training.recommender_model import RecommenderModel
+from recommender_lib.training.evaluation_data import EvaluationData
+from recommender_lib.training.evaluated_algorithm import EvaluatedAlgorithm
+from recommender_lib.model.surprise_model import SurpriseModel
 
 
-def establish_baseline(data_ratings, baseline_name='pearson_baseline', baseline_user_based=False):
+class Pipeline:
+    
+    list_recommender_models = []
+    
+    def __init__(self, dataset, 
+                 rankings,
+                 baseline_sim_options_name="pearson",
+                 baseline_sim_options_user_based=False,
+                 test_size=0.25,
+                 no_of_items_dropped=1,
+                 training_split_random_state=1):
 
-    full_train_set = data_ratings.build_full_trainset()
+        sim_options = {'name': baseline_sim_options_name, 'user_based': baseline_sim_options_user_based}
+        evaluation_data = EvaluationData(dataset, rankings, sim_options,
+                                         test_size=test_size, 
+                                         no_of_items_dropped=no_of_items_dropped, 
+                                         training_split_random_state=training_split_random_state)
+        self.dataset = evaluation_data
+        
+    def add_algorithm(self, algorithm_name, **kwargs):
+        initial_model = SurpriseModel().build(algorithm_name, **kwargs)
+        recommender_model = EvaluatedAlgorithm(algorithm_name, initial_model)
+        self.list_recommender_models.append(recommender_model)
+        
+    def run_evaluation(self, run_top_n, no_of_recommended_items=10, verbose=True):
+        results = {}
+        for recommender_model in self.list_recommender_models:
+            print("Evaluating ", recommender_model.get_algorithm_name(), "...")
+            results[recommender_model.get_algorithm_name()] = \
+                recommender_model.evaluate(self.dataset, run_top_n, 
+                                           n=no_of_recommended_items,
+                                           verbose=verbose)
 
-    # Similarity Algorithm
-    similarity_baseline_model = RecommenderModel().build(algorithm="KNNBaseline",
-                                                         baseline_name=baseline_name, 
-                                                         baseline_user_based=baseline_user_based)
-    similarity_baseline_model.fit(full_train_set)
-    return similarity_baseline_model
-
-
-def train_recommender(data_ratings, 
-                      algorithm="SVD",
-                      no_of_recommended_items=10,
-                      model_random_state=10,
-                      test_size=0.25,
-                      no_of_items_dropped=1,
-                      training_split_random_state=1):
-    """Train Similarity Recommender using surprise package
-
-    Args:
-        data_ratings (_type_): Suprise Dataset with Ratings
-        algorithm (str, optional): Select algorithm to be used. Defaults to "SVD".
-        no_of_recommended_items (int, optional): no of predictions (top-n). Defaults to 10.
-        model_random_state (int, optional): random state for model training. Defaults to 10.
-        test_size (float, optional): percent of dataset to be reserved for testing. Defaults to 0.25.
-        no_of_items_dropped (int, optional): no of items to drop during leave N out validation. Defaults to 1.
-        training_split_random_state (int, optional): random state for train test split and leave 1 out validation process. Defaults to 1.
-
-    Returns:
-        _type_: _description_
-    """
-
-    print(f"\nBuilding recommendation model using {algorithm}...")
-    train_set, test_set = train_test_split(data_ratings, test_size=test_size, random_state=training_split_random_state)
-
-    similarity_model = RecommenderModel().build(algorithm=algorithm, model_random_state=model_random_state)
-    similarity_model.fit(train_set)
-
-    print("\nComputing recommendations...")
-    predictions = similarity_model.test(test_set)
-
-    print("\nEvaluating accuracy of model...")
-    print("RMSE: ", RecommenderMetrics.RMSE(predictions))
-    print("MAE: ", RecommenderMetrics.MAE(predictions))
-
-    print(f"\nEvaluating top-{no_of_recommended_items} recommendations...")
-
-    # Set aside one rating per user for testing
-    LOOCV = LeaveOneOut(n_splits=no_of_items_dropped, random_state=training_split_random_state)
-
-    for train_set, test_set in LOOCV.split(data_ratings):
-        print("Computing recommendations with leave-one-out...")
-
-        # Train model without left-out ratings
-        similarity_model.fit(train_set)
-
-        # Predicts ratings for left-out ratings only
-        print("Predict ratings for left-out set...")
-        left_out_predictions = similarity_model.test(test_set)
-
-        # Build predictions for all ratings not in the training set
-        print("Predict all missing ratings...")
-        bigtest_set = train_set.build_anti_testset()
-        all_predictions = similarity_model.test(bigtest_set)
-
-        # Compute top 10 recs for each user
-        print(f"Compute top {no_of_recommended_items} recs per user...")
-        top_n_predicted = RecommenderMetrics.top_n(all_predictions, n=no_of_recommended_items)
-
-        # See how often we recommended a movie the user actually rated
-        print("\nHit Rate: ", RecommenderMetrics.hit_rate(top_n_predicted, left_out_predictions))
-        # Break down hit rate by rating value
-        print("\nrHR (Hit Rate by Rating value): ")
-        RecommenderMetrics.rating_hit_rate(top_n_predicted, left_out_predictions)
-        # See how often we recommended a movie the user actually liked
-        print("\ncHR (Cumulative Hit Rate, rating >= 4): ", RecommenderMetrics.cumulative_hit_rate(top_n_predicted, left_out_predictions, 4.0))
-        # Compute ARHR
-        print("\nARHR (Average Reciprocal Hit Rank): ", RecommenderMetrics.avg_reciprocal_hit_rate(top_n_predicted, left_out_predictions))
-
-    return similarity_model
-
-
-def evaluate_recommender(data_ratings, 
-                         similarity_model,
-                         no_of_recommended_items=10,
-                         rating_threshold=4.0,
-                         evaluate_diversity=True,
-                         evaluate_novelty=True,
-                         baseline_name='pearson_baseline', 
-                         baseline_user_based=False,
-                         rankings=None):
-
-    full_train_set = data_ratings.build_full_trainset()
-    # Computing item similarities so we can measure diversity later if needed
-    if evaluate_diversity:
-        print("\nComputing item similarities so we can measure diversity later...")
-        sim_options = {'name': baseline_name, 'user_based': baseline_user_based}
-        print("similarity options: " + str(sim_options) + "\n")
-        baseline_model = KNNBaseline(sim_options=sim_options)
-        baseline_model.fit(full_train_set)
-
-    # Evaluate trained model
-    print("\nComputing complete recommendations, no hold outs...")
-    similarity_model.fit(full_train_set)
-    bigtest_set = full_train_set.build_anti_testset()
-    all_predictions = similarity_model.test(bigtest_set)
-    top_n_predicted = RecommenderMetrics.top_n(all_predictions, n=no_of_recommended_items)
-
-    # Print user coverage with a minimum predicted rating of 4.0:
-    print("\nUser coverage: ", RecommenderMetrics.user_coverage(top_n_predicted, full_train_set.n_users, rating_threshold=rating_threshold))
-
-    # Measure novelty (average popularity rank of recommendations):
-    if evaluate_novelty and rankings is not None:
-        print("\nNovelty (average popularity rank): ", RecommenderMetrics.novelty(top_n_predicted, rankings))
-
-    # Measure diversity of recommendations:
-    if evaluate_diversity:
-        print("\nDiversity: ", RecommenderMetrics.diversity(top_n_predicted, baseline_model))
-
-    return
+        # Print results
+        print("\n")
+        
+        if run_top_n:
+            print("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10} {:<10}".format(
+                    "Algorithm", "RMSE", "MAE", "HR", "cHR", "ARHR", "Coverage", "Diversity", "Novelty"))
+            for (name, metrics) in results.items():
+                print("{:<10} {:<10.4f} {:<10.4f} {:<10.4f} {:<10.4f} {:<10.4f} {:<10.4f} {:<10.4f} {:<10.4f}".format(
+                        name, metrics["RMSE"], metrics["MAE"], metrics["HR"], metrics["cHR"], metrics["ARHR"],
+                                      metrics["Coverage"], metrics["Diversity"], metrics["Novelty"]))
+        else:
+            print("{:<10} {:<10} {:<10}".format("Algorithm", "RMSE", "MAE"))
+            for (name, metrics) in results.items():
+                print("{:<10} {:<10.4f} {:<10.4f}".format(name, metrics["RMSE"], metrics["MAE"]))
+                
+        print("\nLegend:\n")
+        print("RMSE:      Root Mean Squared Error. Lower values mean better accuracy.")
+        print("MAE:       Mean Absolute Error. Lower values mean better accuracy.")
+        if run_top_n:
+            print("HR:        Hit Rate; how often we are able to recommend a left-out rating. Higher is better.")
+            print("cHR:       Cumulative Hit Rate; hit rate, confined to ratings above a certain threshold. Higher is better.")
+            print("ARHR:      Average Reciprocal Hit Rank - Hit rate that takes the ranking into account. Higher is better." )
+            print("Coverage:  Ratio of users for whom recommendations above a certain threshold exist. Higher is better.")
+            print("Diversity: 1-S, where S is the average similarity score between every possible pair of recommendations")
+            print("           for a given user. Higher means more diverse.")
+            print("Novelty:   Average popularity rank of recommended items. Higher means more novel.")
+        
+    def sample_top_n_recs(self, ml, test_subject=85, k=10):
+        
+        for recommender_model in self.list_recommender_models:
+            print("\nUsing recommender ", recommender_model.get_algorithm_name())
+            
+            print("\nBuilding recommendation model...")
+            trainSet = self.dataset.get_full_training_set()
+            recommender_model.get_algorithm().fit(trainSet)
+            
+            print("Computing recommendations...")
+            testSet = self.dataset.get_anti_test_set_for_user(test_subject)
+        
+            predictions = recommender_model.get_algorithm().test(testSet)
+            
+            recommendations = []
+            
+            print ("\nWe recommend:")
+            for userID, movieID, actualRating, estimatedRating, _ in predictions:
+                intMovieID = int(movieID)
+                recommendations.append((intMovieID, estimatedRating))
+            
+            recommendations.sort(key=lambda x: x[1], reverse=True)
+            
+            for ratings in recommendations[:10]:
+                print(ml.getMovieName(ratings[0]), ratings[1])

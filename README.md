@@ -27,3 +27,5 @@ python3 -m ipykernel install --name "Recsys" --user
 ```
 After that do `jupyter notebook` and select the kernel "Recsys" for running notebook
 
+## Training Jobs
+- [basic_evaluation](recommender_lib/jobs/basic_evaluation.py)
